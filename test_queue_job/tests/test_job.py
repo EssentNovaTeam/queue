@@ -148,6 +148,20 @@ class TestJobsOnTestingMethod(JobCommonCase):
         job_a.set_pending()
         self.assertFalse(job_a.worker_pid)
 
+    def test_backend_pid(self):
+        """When a job is started, it gets the backend PID of the process."""
+        method = self.env["res.users"].mapped
+        job_a = Job(method)
+        self.assertFalse(job_a.db_backend_pid)
+        job_method = "get_db_backend_pid"
+        with mock.patch.object(Job, job_method, return_value=8888):
+            job_a.set_started()
+            self.assertEqual(job_a.db_backend_pid, 8888)
+
+        # Reset on pending
+        job_a.set_pending()
+        self.assertFalse(job_a.db_backend_pid)
+
     def test_set_done(self):
         job_a = Job(self.method)
         datetime_path = "odoo.addons.queue_job.job.datetime"

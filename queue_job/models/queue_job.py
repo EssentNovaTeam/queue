@@ -2,13 +2,14 @@
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html)
 
 import logging
+import pytz
 from datetime import datetime, timedelta
 
 from odoo import _, api, exceptions, fields, models
 from odoo.osv import expression
 
 from ..fields import JobSerialized
-from ..job import DONE, PENDING, STATES, Job
+from ..job import DONE, PENDING, STARTED, STATES, Job
 
 _logger = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ class QueueJob(models.Model):
 
     identity_key = fields.Char()
     worker_pid = fields.Integer()
+    worker_hostname = fields.Char()
+    db_backend_pid = fields.Integer()
 
     def init(self):
         self._cr.execute(
@@ -234,6 +237,70 @@ class QueueJob(models.Model):
     def requeue(self):
         self._change_job_state(PENDING)
         return True
+
+    def button_terminate(self):
+        self.terminate()
+        return {
+            "type": "ir.actions.client",
+            "tag": "reload",
+        }
+
+    def terminate(self, raise_error=True):
+        """Attempt to kill the backend process related to the running job."""
+        error_jobs = self.env["queue.job"]
+        for record in self:
+            # Check if the job can be terminated
+            if record.state != STARTED:
+                error_message = _(
+                    f"Unable to terminate job {record.uuid} because it is not started"
+                )
+                _logger.warning(error_message)
+                if raise_error:
+                    raise exceptions.UserError(error_message)
+                continue
+
+            elif not record.db_backend_pid:
+                error_message = _(
+                    f"Unable to terminate job {record.uuid}. Missing 'db_backend_pid'",
+                )
+                _logger.warning(error_message)
+                if raise_error:
+                    raise exceptions.UserError(error_message)
+                continue
+
+            # Compare xact_start and job date_started as reference
+            query_vals = {"pid": record.db_backend_pid}
+            self.env.cr.execute(
+                "SELECT xact_start FROM pg_stat_activity WHERE pid = %(pid)s;",
+                query_vals,
+            )
+            backend_start = self.env.cr.fetchone()
+            if backend_start:
+
+                job_start = pytz.utc.localize(record.date_started)
+                difference = abs(job_start - backend_start[0])
+
+                if difference < timedelta(seconds=1):
+
+                    try:
+                        _logger.warning(
+                            "Terminating backend process PID %s for job %s",
+                            record.db_backend_pid,
+                            record.uuid,
+                        )
+                        self.env.cr.execute(
+                            "SELECT pg_terminate_backend(%(pid)s);", query_vals
+                        )
+
+                    except Exception:
+                        _logger.warning(
+                            "Failed to terminate backend process PID %s for job %s",
+                            record.db_backend_pid,
+                            record.uuid,
+                        )
+                        error_jobs += record
+
+        return error_jobs
 
     def _message_post_on_failure(self):
         # subscribe the users now to avoid to subscribe them

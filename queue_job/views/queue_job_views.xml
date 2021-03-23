@@ -8,6 +8,14 @@
             <form string="Jobs" create="false" delete="false">
                 <header>
                     <button
+                        name="button_terminate"
+                        states="started"
+                        class="oe_highlight"
+                        string="Terminate"
+                        type="object"
+                        groups="queue_job.group_queue_job_manager"
+                    />
+                    <button
                         name="requeue"
                         states="failed"
                         class="oe_highlight"
@@ -51,6 +59,8 @@
                             />
                             <field name="user_id" />
                             <field name="worker_pid" groups="base.group_no_one" />
+                            <field name="worker_hostname" groups="base.group_no_one"/>
+                            <field name="db_backend_pid" groups="base.group_no_one"/>
                         </group>
                         <group>
                             <field name="date_created" />
