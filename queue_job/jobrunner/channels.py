@@ -193,7 +193,9 @@ class ChannelJob(object):
 
     """
 
-    def __init__(self, db_name, channel, uuid, seq, date_created, priority, eta):
+    def __init__(
+        self, db_name, channel, uuid, seq, date_created, priority, eta, db_load
+    ):
         self.db_name = db_name
         self.channel = channel
         self.uuid = uuid
@@ -201,6 +203,7 @@ class ChannelJob(object):
         self.date_created = date_created
         self.priority = priority
         self.eta = eta
+        self.db_load = db_load
 
     def __repr__(self):
         return "<ChannelJob %s>" % self.uuid
@@ -999,7 +1002,16 @@ class ChannelManager(object):
         return parent
 
     def notify(
-        self, db_name, channel_name, uuid, seq, date_created, priority, eta, state
+        self,
+        db_name,
+        channel_name,
+        uuid,
+        seq,
+        date_created,
+        priority,
+        eta,
+        state,
+        db_load,
     ):
         try:
             channel = self.get_channel_by_name(channel_name)
@@ -1027,7 +1039,9 @@ class ChannelManager(object):
                 self.remove_job(uuid)
                 job = None
         if not job:
-            job = ChannelJob(db_name, channel, uuid, seq, date_created, priority, eta)
+            job = ChannelJob(
+                db_name, channel, uuid, seq, date_created, priority, eta, db_load
+            )
             self._jobs_by_uuid[uuid] = job
         # state transitions
         if not state or state == DONE:

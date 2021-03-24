@@ -19,6 +19,7 @@
         "wizards/queue_jobs_to_done_views.xml",
         "wizards/queue_requeue_job_views.xml",
         "views/queue_job_menus.xml",
+        "views/database_load_indicator.xml",
         "data/queue_data.xml",
         "data/queue_job_function_data.xml",
     ],

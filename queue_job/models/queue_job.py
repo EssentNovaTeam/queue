@@ -101,6 +101,13 @@ class QueueJob(models.Model):
         readonly=True,
         store=True,
     )
+    db_load = fields.Float(
+        compute="_compute_job_function",
+        digits=(14, 2),
+        readonly=True,
+        store=True,
+        string="DB Load",
+    )
 
     override_channel = fields.Char()
     channel = fields.Char(
@@ -164,6 +171,7 @@ class QueueJob(models.Model):
             function = func_model.search([("name", "=", channel_method_name)], limit=1)
             record.channel_method_name = channel_method_name
             record.job_function_id = function
+            record.db_load = function.db_load
 
     @api.depends("model_name", "method_name", "records", "args", "kwargs")
     def _compute_func_string(self):

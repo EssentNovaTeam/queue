@@ -75,6 +75,14 @@ class QueueJobFunction(models.Model):
         "enable, func_name, kwargs.\n"
         "See the module description for details.",
     )
+    db_load = fields.Float(
+        digits=(14, 2),
+        default=1.0,
+        help=(
+            "The default, relative load that a job with this function "
+            "will add when it is started"
+        ),
+    )
 
     @api.depends("model_id.model", "method")
     def _compute_name(self):
