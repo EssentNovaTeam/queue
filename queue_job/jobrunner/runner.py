@@ -313,7 +313,7 @@ class Database(object):
         # parameters
         query = (
             "SELECT channel, uuid, id as seq, date_created, "
-            "priority, EXTRACT(EPOCH FROM eta), state "
+            "priority, EXTRACT(EPOCH FROM eta), state, db_load "
             "FROM queue_job WHERE %s" % (where,)
         )
         with closing(self.conn.cursor("select_jobs", withhold=True)) as cr:
@@ -355,6 +355,7 @@ class QueueJobRunner(object):
         if channel_config_string is None:
             channel_config_string = _channels()
         self.channel_manager.simple_configure(channel_config_string)
+        self._load_capacity = 0
         self.db_by_name = {}
         self._stop = False
         self._stop_pipe = os.pipe()
@@ -416,9 +417,47 @@ class QueueJobRunner(object):
                         self.channel_manager.notify(db_name, *job_data)
                 _logger.info("queue job runner ready for db %s", db_name)
 
+    def _update_load_capacity(self):
+        """The load capacity as computed by the database.load.indicator model
+        is used to determine how many jobs can be queued before the load is
+        checked again (checking the load on every job may cause too much
+        overhead in itself, defeating the purpose).
+        The default load associated with a job is 1, but a higher load can be
+        configured on the job's function. This simply makes the jobrunner check
+        the current load after queuing less jobs. This won't work well if the
+        jobs have a very high load (say, equal to the load capacity) because
+        in that case, the load is checked again immediately after firing that
+        job (and likely before it has actually started hogging the CPU load),
+        but it should help to balance jobs that have a load that is about two
+        or three times the default load, especially if they come in swarms.
+        """
+        default_load_capacity = self.channel_manager._root_channel.capacity
+        databases = list(self.db_by_name.keys())
+        if not databases:
+            return False
+        conn = odoo.sql_db.db_connect(databases[0])
+        with odoo.api.Environment.manage(), closing(conn.cursor()) as cr:
+            env = odoo.api.Environment(cr, odoo.SUPERUSER_ID, {})
+            if env.registry != env.registry.check_signaling():
+                # Caches have been cleared in the mean time
+                env.reset()
+            obj = env["database.load.indicator"]
+            indicator = obj._get_active_indicator()
+            if not indicator:
+                self._load_capacity = default_load_capacity
+                return
+            self._load_capacity = env["database.load.indicator"]._call(
+                indicator, default=default_load_capacity
+            )
+        if self._load_capacity <= 0:
+            time.sleep(indicator["sleep"] or 0)
+        return self._load_capacity
+
     def run_jobs(self):
         now = _odoo_now()
         for job in self.channel_manager.get_jobs_to_run(now):
+            while self._load_capacity <= 0 and not self._stop:
+                self._update_load_capacity()
             if self._stop:
                 break
             _logger.info("asking Odoo to run job %s on db %s", job.uuid, job.db_name)
@@ -432,6 +471,7 @@ class QueueJobRunner(object):
                 job.db_name,
                 job.uuid,
             )
+            self._load_capacity -= abs(job.db_load or 1)
 
     def process_notifications(self):
         for db in self.db_by_name.values():

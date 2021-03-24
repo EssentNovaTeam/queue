@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <record id="database_load_indicator_tree" model="ir.ui.view">
+        <field name="model">database.load.indicator</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not active">
+                <field name="name" />
+                <field name="function" />
+                <field name="arguments" />
+                <field name="factor" />
+                <field name="sleep_before" />
+                <field name="sleep" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="database_load_indicator_form" model="ir.ui.view">
+        <field name="model">database.load.indicator</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button type="object" string="Try" name="try_call" />
+                </header>
+                <group>
+                    <group>
+                        <field name="name" />
+                        <field name="function" />
+                        <field name="arguments" />
+                    </group>
+                    <group>
+                        <field name="factor" />
+                        <field name="sleep_before" />
+                        <field name="sleep" />
+                        <field name="active" />
+                        <field name="debug" />
+                    </group>
+                </group>
+                <group string="Definition">
+                    <field name="definition" nolabel="1" />
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_database_load_indicator_tree" model="ir.actions.act_window">
+        <field name="name">Database Load Indicator Configuration</field>
+        <field name="res_model">database.load.indicator</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <menuitem
+        id="menu_database_load_indicator"
+        name="DB Load"
+        parent="queue_job.menu_queue"
+        sequence="99"
+    />
+
+    <menuitem
+        id="menu_action_database_load_indicator"
+        action="action_database_load_indicator_tree"
+        groups="base.group_system"
+        name="DB Load Indicator"
+        parent="menu_database_load_indicator"
+        sequence="99"
+    />
+
+</odoo>
