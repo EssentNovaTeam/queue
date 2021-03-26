@@ -39,6 +39,7 @@
                         <field name="uuid" />
                         <field name="func_string" />
                         <field name="job_function_id" />
+                        <field name="db_load" />
                         <field name="channel" />
                     </group>
                     <group>

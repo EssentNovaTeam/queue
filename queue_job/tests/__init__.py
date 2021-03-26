@@ -1,3 +1,4 @@
+from . import test_load_indicator
 from . import test_runner_channels
 from . import test_runner_runner
 from . import test_json_field
