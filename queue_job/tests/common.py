@@ -1,14 +1,13 @@
 # Copyright 2019 Camptocamp
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 import doctest
+import logging
+import sys
 from contextlib import contextmanager
 
 import mock
 
-from odoo.tests import BaseCase, tagged
-
-# pylint: disable=odoo-addons-relative-import
-from odoo.addons.queue_job.job import Job
+from ..job import Job
 
 
 class JobCounter:
@@ -102,24 +101,26 @@ def mock_with_delay():
         yield delayable_cls, delayable
 
 
-@tagged("doctest")
-class OdooDocTestCase(BaseCase):
+class OdooDocTestCase(doctest.DocTestCase):
     """
     We need a custom DocTestCase class in order to:
     - define test_tags to run as part of standard tests
     - output a more meaningful test name than default "DocTestCase.runTest"
     """
 
-    __qualname__ = "doctests for "
+    def __init__(self, doctest, optionflags=0, setUp=None, tearDown=None, checker=None):
+        super().__init__(
+            doctest._dt_test,
+            optionflags=optionflags,
+            setUp=setUp,
+            tearDown=tearDown,
+            checker=checker,
+        )
 
-    def __init__(self, test):
-        self.__test = test
-        self.__name = test._dt_test.name
-        super().__init__(self.__name)
-
-    def __getattr__(self, item):
-        if item == self.__name:
-            return self.__test
+    def setUp(self):
+        """Log an extra statement which test is started."""
+        super(OdooDocTestCase, self).setUp()
+        logging.getLogger(__name__).info("Running tests for %s", self._dt_test.name)
 
 
 def load_doctests(module):
@@ -129,8 +130,20 @@ def load_doctests(module):
     """
 
     def load_tests(loader, tests, ignore):
+        """
+        Apply the 'test_tags' attribute to each DocTestCase found by the DocTestSuite.
+        Also extend the DocTestCase class trivially to fit the class teardown
+        that Odoo backported for its own test classes from Python 3.8.
+        """
+        if sys.version_info < (3, 8):
+            doctest.DocTestCase.doClassCleanups = lambda: None
+            doctest.DocTestCase.tearDown_exceptions = []
+
         for test in doctest.DocTestSuite(module):
-            tests.addTest(OdooDocTestCase(test))
+            odoo_test = OdooDocTestCase(test)
+            odoo_test.test_tags = {"standard", "at_install", "queue_job", "doctest"}
+            tests.addTest(odoo_test)
+
         return tests
 
     return load_tests
