@@ -194,7 +194,7 @@ class ChannelJob(object):
     """
 
     def __init__(
-        self, db_name, channel, uuid, seq, date_created, priority, eta, db_load
+        self, db_name, channel, uuid, seq, date_created, priority, eta, db_load=1
     ):
         self.db_name = db_name
         self.channel = channel
@@ -1011,7 +1011,7 @@ class ChannelManager(object):
         priority,
         eta,
         state,
-        db_load,
+        db_load=1,
     ):
         try:
             channel = self.get_channel_by_name(channel_name)
