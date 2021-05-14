@@ -256,6 +256,11 @@ class Job(object):
 
         ID of the database transaction.
 
+    .. attribute::sequence_group
+
+        Sequence group can be used to process a number of jobs in sequence within
+        a regular channel. Separate groups of jobs can be processed in parallel.
+
     """
 
     @classmethod
@@ -307,6 +312,9 @@ class Job(object):
         if stored.date_done:
             job_.date_done = stored.date_done
 
+        if stored.sequence_group:
+            job_.sequence_group = stored.sequence_group
+
         job_.state = stored.state
         job_.result = stored.result if stored.result else None
         job_.exc_info = stored.exc_info if stored.exc_info else None
@@ -347,6 +355,7 @@ class Job(object):
         description=None,
         channel=None,
         identity_key=None,
+        sequence_group=None,
     ):
         """Create a Job and enqueue it in the queue. Return the job uuid.
 
@@ -367,6 +376,7 @@ class Job(object):
             description=description,
             channel=channel,
             identity_key=identity_key,
+            sequence_group=sequence_group,
         )
         if new_job.identity_key:
             existing = new_job.job_record_with_same_identity_key()
@@ -407,6 +417,7 @@ class Job(object):
         description=None,
         channel=None,
         identity_key=None,
+        sequence_group=None,
     ):
         """Create a Job
 
@@ -431,6 +442,7 @@ class Job(object):
         :param identity_key: A hash to uniquely identify a job, or a function
                              that returns this hash (the function takes the job
                              as argument)
+        :param sequence_group: A key to group jobs that should be processed sequentially
         :param env: Odoo Environment
         :type env: :class:`odoo.api.Environment`
         """
@@ -485,6 +497,7 @@ class Job(object):
 
         self.date_created = datetime.now()
         self._description = description
+        self.sequence_group = sequence_group
 
         if isinstance(identity_key, str):
             self._identity_key = identity_key
@@ -573,6 +586,8 @@ class Job(object):
             vals["identity_key"] = self.identity_key
         if self.db_txid:
             vals["db_txid"] = self.db_txid
+        if self.sequence_group:
+            vals["sequence_group"] = self.sequence_group
 
         job_model = self.env["queue.job"]
         # The sentinel is used to prevent edition sensitive fields (such as

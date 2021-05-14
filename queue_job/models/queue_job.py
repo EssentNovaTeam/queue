@@ -108,6 +108,7 @@ class QueueJob(models.Model):
         store=True,
         string="DB Load",
     )
+    sequence_group = fields.Char()
 
     override_channel = fields.Char()
     channel = fields.Char(
