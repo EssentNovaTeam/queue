@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 from datetime import datetime, timedelta
+from random import randint
 from socket import gethostname
 
 import odoo
@@ -755,6 +756,8 @@ class Job(object):
                     break
         elif not seconds:
             seconds = RETRY_INTERVAL
+        if isinstance(seconds, (list, tuple)):
+            seconds = randint(seconds[0], seconds[1])
         return seconds
 
     def postpone(self, result=None, seconds=None):
