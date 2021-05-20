@@ -59,6 +59,7 @@
                                 groups="base.group_multi_company"
                             />
                             <field name="user_id" />
+                            <field name="sequence_group" />
                             <field name="worker_pid" groups="base.group_no_one" />
                             <field name="worker_hostname" groups="base.group_no_one" />
                             <field name="db_txid" groups="base.group_no_one" />

@@ -194,7 +194,16 @@ class ChannelJob(object):
     """
 
     def __init__(
-        self, db_name, channel, uuid, seq, date_created, priority, eta, db_load=1
+        self,
+        db_name,
+        channel,
+        uuid,
+        seq,
+        date_created,
+        priority,
+        eta,
+        db_load=1,
+        sequence_group=None,
     ):
         self.db_name = db_name
         self.channel = channel
@@ -204,6 +213,7 @@ class ChannelJob(object):
         self.priority = priority
         self.eta = eta
         self.db_load = db_load
+        self.sequence_group = sequence_group
 
     def __repr__(self):
         return "<ChannelJob %s>" % self.uuid
@@ -594,7 +604,7 @@ class Channel(object):
                 self._pause_until = 0
                 _logger.debug("channel %s unpaused at %s", self, now)
         # yield jobs that are ready to run, while we have capacity
-
+        _deferred = SafeSet()
         jobs_to_get = jobs_to_get_orig
         found_job = True
         while self.has_capacity() or (
@@ -621,7 +631,22 @@ class Channel(object):
                                 "job %s marked running in channel %s", job.uuid, self
                             )
                             yield job
+                for deferred_job in _deferred:
+                    self._queue.add(deferred_job)
                 return
+
+            # Maintain sequence for jobs with the same sequence group
+            if job.sequence_group and any(
+                    j.sequence_group == job.sequence_group for j in self._running):
+                _deferred.add(job)
+                _logger.debug(
+                    "job %s re-queued because a job with the same sequence group %s is "
+                    "already running in channel %s",
+                    job.uuid,
+                    job.sequence_group,
+                    self
+                )
+                continue
 
             self._running.add(job)
             _logger.debug("job %s marked running in channel %s", job.uuid, self)
@@ -629,6 +654,10 @@ class Channel(object):
                 jobs_to_get -= 1
             found_job = True
             yield job
+
+            for deferred_job in _deferred:
+                self._queue.add(deferred_job)
+
             if self.throttle:
                 self._pause_until = now + self.throttle
                 _logger.debug("pausing channel %s until %s", self, self._pause_until)
@@ -945,6 +974,17 @@ class ChannelManager(object):
 
     >>> pp(list(cm.get_jobs_to_run(now=100)))
     [<ChannelJob C4>, <ChannelJob D2>]
+
+    # Sequence grouping within a regular channel
+    >>> cm = ChannelManager()
+    >>> cm.simple_configure('root:4,G:4')
+    >>> cm.notify(db, 'G', 'G1', 1, 0, 10, None, 'pending', sequence_group="a")
+    >>> cm.notify(db, 'G', 'G2', 2, 0, 10, None, 'pending', sequence_group="a")
+    >>> cm.notify(db, 'G', 'G3', 3, 0, 10, None, 'pending', sequence_group="b")
+    >>> cm.notify(db, 'G', 'G4', 4, 0, 10, None, 'pending', sequence_group="b")
+    >>> cm.notify(db, 'G', 'G5', 5, 0, 10, None, 'pending')
+    >>> pp(list(cm.get_jobs_to_run(now=100)))
+    [<ChannelJob G1>, <ChannelJob G3>, <ChannelJob G5>]
     """
 
     def __init__(self):
@@ -1158,6 +1198,7 @@ class ChannelManager(object):
         eta,
         state,
         db_load=1,
+        sequence_group=None,
     ):
         try:
             channel = self.get_channel_by_name(channel_name)
@@ -1186,7 +1227,15 @@ class ChannelManager(object):
                 job = None
         if not job:
             job = ChannelJob(
-                db_name, channel, uuid, seq, date_created, priority, eta, db_load
+                db_name,
+                channel,
+                uuid,
+                seq,
+                date_created,
+                priority,
+                eta,
+                db_load,
+                sequence_group,
             )
             self._jobs_by_uuid[uuid] = job
         # state transitions
